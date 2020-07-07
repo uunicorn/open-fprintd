@@ -18,6 +18,11 @@ This is very much work in progress, but the intended architecture should look so
 <python-validity (Python)>    <exsting drivers exposed by a single service linked against the offcial libfprint (C)>
 ```
 
+## Warning
+
+This is work in progress. Install and use at your own risc.  At this point this project does not enforce any auth 
+checks against requests made on DBus.
+
 
 ## Why?
 
