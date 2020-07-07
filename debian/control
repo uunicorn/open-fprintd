@@ -15,6 +15,9 @@ Depends: ${python3:Depends},
  ${misc:Depends},
  python3-dbus,
  dbus
+Breaks: fprintd
+Conflicts: fprintd
+Replaces: fprintd
 XB-Python-Version: ${python3:Versions}
 Description: Open fprintd DBus service
  .
