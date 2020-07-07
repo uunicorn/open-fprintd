@@ -1,0 +1,23 @@
+Source: open-fprintd
+Section: admin
+Priority: optional
+Maintainer: uunicorn <viktor.dragomiretskyy@gmail.com>
+Build-Depends: debhelper (>= 7.0.50~), 
+ dh-python, 
+ python3-all, 
+ python3-setuptools
+X-Python3-Version: >= 3.6
+Standards-Version: 3.9.2
+
+Package: open-fprintd
+Architecture: all
+Depends: ${python3:Depends},
+ ${misc:Depends},
+ python3-dbus,
+ dbus
+XB-Python-Version: ${python3:Versions}
+Description: Open fprintd DBus service
+ .
+ This package lets you integrate fingerprint driver backends with the rest of
+ the system.
+ 

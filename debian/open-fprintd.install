@@ -1,0 +1,4 @@
+usr/share/dbus-1
+usr/lib/python*/*-packages/*.egg-info
+usr/lib/python*/*-packages/openfprintd/*.py
+usr/lib/open-fprintd
