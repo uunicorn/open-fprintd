@@ -6,6 +6,9 @@ from openfprintd.device import Device
 
 INTERFACE_NAME = 'net.reactivated.Fprint.Manager'
 
+class NoSuchDevice(dbus.DBusException):
+    _dbus_error_name = 'net.reactivated.Fprint.Error.NoSuchDevice'
+
 class Manager(dbus.service.Object):
     def __init__(self, bus_name):
         dbus.service.Object.__init__(self, bus_name, '/net/reactivated/Fprint/Manager')
@@ -28,7 +31,11 @@ class Manager(dbus.service.Object):
                          sender_keyword='sender')
     def GetDefaultDevice(self, sender, connection):
         logging.debug("GetDefaultDevice")
-        return self.GetDevices(sender, connection)[0]
+
+        if len(self.devices) == 0:
+            raise NoSuchDevice()
+        
+        return self.devices[0]
 
     # TODO: use a different interface name for this
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
