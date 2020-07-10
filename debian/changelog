@@ -1,5 +1,18 @@
-open-fprintd (0.1) UNRELEASED; urgency=medium
+open-fprintd (0.1~ppa1~ubuntu18.04.3) bionic; urgency=medium
 
+  * No changes.
+
+ -- uunicorn <viktor.dragomiretskyy@gmail.com>  Wed, 08 Jul 2020 14:47:44 +1200
+
+open-fprintd (0.1~ppa1~ubuntu18.04.2) unstable; urgency=medium
+
+  * No changes.
+
+ -- uunicorn <viktor.dragomiretskyy@gmail.com>  Wed, 08 Jul 2020 14:36:33 +1200
+
+open-fprintd (0.1~ppa1~ubuntu18.04.1) unstable; urgency=medium
+
+  [ uunicorn ]
   * Initial release.
 
  -- uunicorn <viktor.dragomiretskyy@gmail.com>  Wed, 08 Jul 2020 00:06:55 +1200

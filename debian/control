@@ -19,8 +19,9 @@ Breaks: fprintd
 Conflicts: fprintd
 Replaces: fprintd
 XB-Python-Version: ${python3:Versions}
-Description: Open fprintd DBus service
- .
+Description: Open fprintd DBus service.
  This package lets you integrate fingerprint driver backends with the rest of
  the system.
- 
+ .
+ Warning: this is an experimental software. It lacks proper auth checks.
+ Install and use at your own risk.
