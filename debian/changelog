@@ -1,3 +1,10 @@
+open-fprintd (0.2~ppa1) bionic; urgency=medium
+
+  * Add RegisterDevice method
+  * Remove hard dependency on python-validity bus name
+
+ -- uunicorn <viktor.dragomiretskyy@gmail.com>  Fri, 10 Jul 2020 15:51:41 +1200
+
 open-fprintd (0.1~ppa1~ubuntu18.04.3) bionic; urgency=medium
 
   * No changes.

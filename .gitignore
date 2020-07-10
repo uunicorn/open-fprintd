@@ -1,5 +1,6 @@
 __pycache__
 debian/.debhelper
+debian/files
 dist
 build
 open_fprintd.egg-info
