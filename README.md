@@ -23,6 +23,12 @@ This is very much work in progress, but the intended architecture should look so
 This is work in progress. Install and use at your own risc.  At this point this project does not enforce any auth 
 checks against requests made on DBus.
 
+## Setting up
+
+On a Debian-based system, to re-install from sources (useful for testing):
+```
+./setup.py install --force --install-layout deb --prefix=/usr --root=/
+```
 
 ## Why?
 

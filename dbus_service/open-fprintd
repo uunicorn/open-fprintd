@@ -9,7 +9,6 @@ import logging
 import argparse
 
 from openfprintd.manager import Manager
-from openfprintd.device import Device
 
 
 if __name__ == '__main__':
@@ -21,8 +20,7 @@ if __name__ == '__main__':
         logging.basicConfig(level=logging.DEBUG)
 
     bus_name = dbus.service.BusName('net.reactivated.Fprint', dbus.SystemBus())
-    device = Device(bus_name, 'io.github.uunicorn.Fprint', '/io/github/uunicorn/Fprint/Device')
-    server = Manager(bus_name, device)
+    server = Manager(bus_name)
 
     GObject.MainLoop().run()
 

@@ -17,28 +17,21 @@ class PermissionDenied(dbus.DBusException):
     _dbus_error_name = 'net.reactivated.Fprint.Error.PermissionDenied'
 
 class Device(dbus.service.Object):
-    def __init__(self, bus_name, target_name, target_path):
+    def __init__(self, bus_name, target_name):
         dbus.service.Object.__init__(self, bus_name, '/net/reactivated/Fprint/Device/0')
         self.bus = bus_name.get_bus()
 
-        def watch_cb(name):
-            logging.debug('Device().watch_cb("%s")' % name)
-            if name == '':
-                self.target = None
-            else:
-                self.target = self.bus.get_object(target_name, target_path)
-                self.target_props = dbus.Dictionary({ 
-                        'name':  'DBus driver', 
-                        'num-enroll-stages': 5,
-                        'scan-type': 'press'
-                    })
-                self.target = dbus.Interface(self.target, 'io.github.uunicorn.Fprint.Device')
-                self.target.connect_to_signal('VerifyStatus', self.VerifyStatus)
-                self.target.connect_to_signal('EnrollStatus', self.EnrollStatus)
-                self.owner_watcher = None
-                self.busy = False
-
-        target_watcher = self.connection.watch_name_owner(target_name, watch_cb)
+        self.target = self.bus.get_object(target_name, '/io/github/uunicorn/Fprint/Device')
+        self.target_props = dbus.Dictionary({ 
+                'name':  'DBus driver', 
+                'num-enroll-stages': 5,
+                'scan-type': 'press'
+            })
+        self.target = dbus.Interface(self.target, 'io.github.uunicorn.Fprint.Device')
+        self.target.connect_to_signal('VerifyStatus', self.VerifyStatus)
+        self.target.connect_to_signal('EnrollStatus', self.EnrollStatus)
+        self.owner_watcher = None
+        self.busy = False
 
     # ------------------ Template Database --------------------------
 
