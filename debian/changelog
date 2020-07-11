@@ -1,3 +1,11 @@
+open-fprintd (0.4~ppa1) bionic; urgency=medium
+
+  * Disable implicit introspection as it was causing errors in logs.
+  * Generic RunCmd method added for debugging.
+  * Use unique DBus path for devices.
+ 
+ -- uunicorn <viktor.dragomiretskyy@gmail.com>  Sun, 12 Jul 2020 04:02:24 +1200
+
 open-fprintd (0.3~ppa1) bionic; urgency=medium
 
   * Remove python-validity leftovers
