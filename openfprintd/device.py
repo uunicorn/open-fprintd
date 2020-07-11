@@ -17,11 +17,14 @@ class PermissionDenied(dbus.DBusException):
     _dbus_error_name = 'net.reactivated.Fprint.Error.PermissionDenied'
 
 class Device(dbus.service.Object):
+    cnt=0
+
     def __init__(self, bus_name, target_name):
-        dbus.service.Object.__init__(self, bus_name, '/net/reactivated/Fprint/Device/0')
+        dbus.service.Object.__init__(self, bus_name, '/net/reactivated/Fprint/Device/%d' % Device.cnt)
+        Device.cnt += 1
         self.bus = bus_name.get_bus()
 
-        self.target = self.bus.get_object(target_name, '/io/github/uunicorn/Fprint/Device')
+        self.target = self.bus.get_object(target_name, '/io/github/uunicorn/Fprint/Device', introspect=False)
         self.target_props = dbus.Dictionary({ 
                 'name':  'DBus driver', 
                 'num-enroll-stages': 5,
@@ -48,7 +51,7 @@ class Device(dbus.service.Object):
             pw=pwd.getpwuid(uid)
             username=pw.pw_name
 
-        return self.target.ListEnrolledFingers(username)
+        return self.target.ListEnrolledFingers(username, signature='s')
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
                          in_signature='s', 
@@ -64,7 +67,7 @@ class Device(dbus.service.Object):
         elif username != pw.pw_name and uid != 0:
             raise PermissionDenied()
 
-        return self.target.DeleteEnrolledFingers(username)
+        return self.target.DeleteEnrolledFingers(username, signature='s')
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
                          in_signature='', 
@@ -79,7 +82,7 @@ class Device(dbus.service.Object):
         if self.owner_watcher is None:
             raise ClaimDevice()
 
-        return self.target.DeleteEnrolledFingers(pw.pw_name)
+        return self.target.DeleteEnrolledFingers(pw.pw_name, signature='s')
 
     # ------------------ Claim/Release --------------------------
 
@@ -122,7 +125,7 @@ class Device(dbus.service.Object):
             self.owner_watcher = None
 
         if self.busy:
-            self.target.Cancel()
+            self.target.Cancel(signature='')
             self.busy = False
 
     # ------------------ Verify --------------------------
@@ -142,7 +145,7 @@ class Device(dbus.service.Object):
             raise ClaimDevice()
 
         self.busy = True
-        return self.target.VerifyStart(pw.pw_name, finger_name)
+        return self.target.VerifyStart(pw.pw_name, finger_name, signature='ss')
 
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
@@ -157,7 +160,7 @@ class Device(dbus.service.Object):
             raise ClaimDevice()
         
         self.busy = False
-        self.target.Cancel()
+        self.target.Cancel(signature='')
 
     @dbus.service.signal(dbus_interface=INTERFACE_NAME, signature='s')
     def VerifyFingerSelected(self, finger):
@@ -187,7 +190,7 @@ class Device(dbus.service.Object):
 
         self.busy = True
         logging.debug('Actually calling target...')
-        rc=self.target.EnrollStart(pw.pw_name, finger_name)
+        rc=self.target.EnrollStart(pw.pw_name, finger_name, signature='ss')
         logging.debug('...rc=%s' % repr(rc))
         return rc
 
@@ -204,7 +207,7 @@ class Device(dbus.service.Object):
             raise ClaimDevice()
 
         self.busy = False
-        self.target.Cancel()
+        self.target.Cancel(signature='')
 
 
     @dbus.service.signal(dbus_interface=INTERFACE_NAME, signature='sb')
@@ -212,6 +215,17 @@ class Device(dbus.service.Object):
         logging.debug('EnrollStatus')
         if done:
             self.busy = False
+
+    # ------------------ Debug --------------------------
+
+    @dbus.service.method(dbus_interface=INTERFACE_NAME,
+                         in_signature='s', 
+                         out_signature='s',
+                         connection_keyword='connection',
+                         sender_keyword='sender')
+    def RunCmd(self, s, sender, connection):
+        logging.debug('RunCmd')
+        return self.target.RunCmd(s, signature='s')
 
     # ------------------ Props --------------------------
 
