@@ -32,6 +32,7 @@ class Device(dbus.service.Object):
             })
         self.target = dbus.Interface(self.target, 'io.github.uunicorn.Fprint.Device')
         self.target.connect_to_signal('VerifyStatus', self.VerifyStatus)
+        self.target.connect_to_signal('VerifyFingerSelected', self.VerifyFingerSelected)
         self.target.connect_to_signal('EnrollStatus', self.EnrollStatus)
         self.owner_watcher = None
         self.busy = False
