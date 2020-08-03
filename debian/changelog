@@ -1,3 +1,9 @@
+open-fprintd (0.5~ppa1) bionic; urgency=medium
+
+  * A bunch of Claim-related bug fixes
+
+ -- uunicorn <viktor.dragomiretskyy@gmail.com>  Mon, 03 Aug 2020 23:44:02 +1200
+
 open-fprintd (0.4~ppa1) bionic; urgency=medium
 
   * Disable implicit introspection as it was causing errors in logs.
