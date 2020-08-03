@@ -10,11 +10,20 @@ INTERFACE_NAME = 'net.reactivated.Fprint.Device'
 class AlreadyInUse(dbus.DBusException):
     _dbus_error_name = 'net.reactivated.Fprint.Error.AlreadyInUse'
 
+    def __init__(self):
+        super().__init__('Device is already in use')
+
 class ClaimDevice(dbus.DBusException):
     _dbus_error_name = 'net.reactivated.Fprint.Error.ClaimDevice'
 
+    def __init__(self):
+        super().__init__('Client must claim device first')
+
 class PermissionDenied(dbus.DBusException):
     _dbus_error_name = 'net.reactivated.Fprint.Error.PermissionDenied'
+
+    def __init__(self):
+        super().__init__('Permission denied')
 
 class Device(dbus.service.Object):
     cnt=0
@@ -35,6 +44,8 @@ class Device(dbus.service.Object):
         self.target.connect_to_signal('VerifyFingerSelected', self.VerifyFingerSelected)
         self.target.connect_to_signal('EnrollStatus', self.EnrollStatus)
         self.owner_watcher = None
+        self.claimed_by = None
+        self.claim_sender = None
         self.busy = False
 
     # ------------------ Template Database --------------------------
@@ -61,8 +72,9 @@ class Device(dbus.service.Object):
                          sender_keyword='sender')
     def DeleteEnrolledFingers(self, username, sender, connection):
         logging.debug('DeleteEnrolledFingers: %s' % username)
-        uid=self.bus.get_unix_user(sender)
-        pw=pwd.getpwuid(uid)
+
+        uid = self.bus.get_unix_user(sender)
+        pw = pwd.getpwuid(uid)
         if username is None or len(username) == 0:
             username = pw.pw_name
         elif username != pw.pw_name and uid != 0:
@@ -77,13 +89,11 @@ class Device(dbus.service.Object):
                          sender_keyword='sender')
     def DeleteEnrolledFingers2(self, sender, connection):
         logging.debug('DeleteEnrolledFingers2')
-        uid=self.bus.get_unix_user(sender)
-        pw=pwd.getpwuid(uid)
 
-        if self.owner_watcher is None:
+        if self.owner_watcher is None or self.claim_sender != sender:
             raise ClaimDevice()
 
-        return self.target.DeleteEnrolledFingers(pw.pw_name, signature='s')
+        return self.target.DeleteEnrolledFingers(self.claimed_by, signature='s')
 
     # ------------------ Claim/Release --------------------------
 
@@ -95,6 +105,13 @@ class Device(dbus.service.Object):
     def Claim(self, username, sender, connection):
         logging.debug('Claim')
 
+        uid=self.bus.get_unix_user(sender)
+        pw=pwd.getpwuid(uid)
+        if username is None or len(username) == 0:
+            username = pw.pw_name
+        elif username != pw.pw_name and uid != 0:
+            raise PermissionDenied()
+
         if self.owner_watcher is not None:
             raise AlreadyInUse()
 
@@ -103,7 +120,8 @@ class Device(dbus.service.Object):
                 self.do_release()
 
         self.owner_watcher = self.connection.watch_name_owner(sender, watch_cb)
-
+        self.claimed_by = username
+        self.claim_sender = sender
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
                          in_signature='', 
@@ -113,13 +131,15 @@ class Device(dbus.service.Object):
     def Release(self, sender, connection):
         logging.debug('Release')
 
-        if self.owner_watcher is None:
+        if self.owner_watcher is None or self.claim_sender != sender:
             raise ClaimDevice()
         
         self.do_release()
 
     def do_release(self):
         logging.debug('do_release')
+        self.claimed_by = None
+        self.claim_sender = None
 
         if self.owner_watcher is not None:
             self.owner_watcher.cancel()
@@ -139,14 +159,11 @@ class Device(dbus.service.Object):
     def VerifyStart(self, finger_name, sender, connection):
         logging.debug('VerifyStart')
 
-        uid=self.bus.get_unix_user(sender)
-        pw=pwd.getpwuid(uid)
-
-        if self.owner_watcher is None:
+        if self.owner_watcher is None or self.claim_sender != sender:
             raise ClaimDevice()
 
         self.busy = True
-        return self.target.VerifyStart(pw.pw_name, finger_name, signature='ss')
+        return self.target.VerifyStart(self.claimed_by, finger_name, signature='ss')
 
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
@@ -157,7 +174,7 @@ class Device(dbus.service.Object):
     def VerifyStop(self, sender, connection):
         logging.debug('VerifyStop')
 
-        if self.owner_watcher is None:
+        if self.owner_watcher is None or self.claim_sender != sender:
             raise ClaimDevice()
         
         self.busy = False
@@ -183,15 +200,12 @@ class Device(dbus.service.Object):
     def EnrollStart(self, finger_name, sender, connection):
         logging.debug('EnrollStart')
 
-        uid=self.bus.get_unix_user(sender)
-        pw=pwd.getpwuid(uid)
-
-        if self.owner_watcher is None:
+        if self.owner_watcher is None or self.claim_sender != sender:
             raise ClaimDevice()
 
         self.busy = True
         logging.debug('Actually calling target...')
-        rc=self.target.EnrollStart(pw.pw_name, finger_name, signature='ss')
+        rc = self.target.EnrollStart(self.claimed_by, finger_name, signature='ss')
         logging.debug('...rc=%s' % repr(rc))
         return rc
 
@@ -204,7 +218,7 @@ class Device(dbus.service.Object):
     def EnrollStop(self, sender, connection):
         logging.debug('EnrollStop')
 
-        if self.owner_watcher is None:
+        if self.owner_watcher is None or self.claim_sender != sender:
             raise ClaimDevice()
 
         self.busy = False
