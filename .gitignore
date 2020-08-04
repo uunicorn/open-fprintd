@@ -1,6 +1,13 @@
+*.log
+.pybuild/
 __pycache__
-debian/.debhelper
-debian/files
-dist
 build
+debian/*.debhelper
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/open-fprintd.substvars
+debian/open-fprintd/
+debian/tmp/
+dist
 open_fprintd.egg-info
