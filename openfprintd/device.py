@@ -1,5 +1,6 @@
 import logging
 import pwd
+import typing
 
 import dbus
 import dbus.service
@@ -264,7 +265,7 @@ class Device(dbus.service.Object):
 
     @dbus.service.method(dbus.PROPERTIES_IFACE, in_signature='s', out_signature='a{sv}')
     def GetAll(self, interface):
-        logging.debug('GetAll %s' % (interface))
+        logging.debug('GetAll %s' % interface)
 
         if interface != INTERFACE_NAME:
             raise dbus.exceptions.DBusException('net.reactivated.Fprint.Error.UnknownInterface')

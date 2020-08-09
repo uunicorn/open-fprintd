@@ -1,4 +1,5 @@
 import logging
+import typing
 
 import dbus.service
 
@@ -15,7 +16,7 @@ class Manager(dbus.service.Object):
     def __init__(self, bus_name):
         dbus.service.Object.__init__(self, bus_name, '/net/reactivated/Fprint/Manager')
         self.bus_name = bus_name
-        self.devices = []
+        self.devices: typing.List[Device] = []
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
                          in_signature='',

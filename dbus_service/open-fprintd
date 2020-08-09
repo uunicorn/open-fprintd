@@ -1,14 +1,15 @@
 #!/usr/bin/python3
 
+import argparse
+import logging
+
 import dbus.mainloop.glib
 import dbus.service
-
-dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 from gi.repository import GObject
-import logging
-import argparse
 
 from openfprintd.manager import Manager
+
+dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Open fprintd DBus service')
