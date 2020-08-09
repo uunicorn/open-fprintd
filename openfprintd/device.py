@@ -1,11 +1,11 @@
-
-import dbus
-import dbus.service
 import logging
 import pwd
 
+import dbus
+import dbus.service
 
 INTERFACE_NAME = 'net.reactivated.Fprint.Device'
+
 
 class AlreadyInUse(dbus.DBusException):
     _dbus_error_name = 'net.reactivated.Fprint.Error.AlreadyInUse'
@@ -13,11 +13,13 @@ class AlreadyInUse(dbus.DBusException):
     def __init__(self):
         super().__init__('Device is already in use')
 
+
 class ClaimDevice(dbus.DBusException):
     _dbus_error_name = 'net.reactivated.Fprint.Error.ClaimDevice'
 
     def __init__(self):
         super().__init__('Client must claim device first')
+
 
 class PermissionDenied(dbus.DBusException):
     _dbus_error_name = 'net.reactivated.Fprint.Error.PermissionDenied'
@@ -25,20 +27,24 @@ class PermissionDenied(dbus.DBusException):
     def __init__(self):
         super().__init__('Permission denied')
 
+
 class Device(dbus.service.Object):
-    cnt=0
+    cnt = 0
 
     def __init__(self, bus_name, target_name):
-        dbus.service.Object.__init__(self, bus_name, '/net/reactivated/Fprint/Device/%d' % Device.cnt)
+        dbus.service.Object.__init__(self, bus_name,
+                                     '/net/reactivated/Fprint/Device/%d' % Device.cnt)
         Device.cnt += 1
         self.bus = bus_name.get_bus()
 
-        self.target = self.bus.get_object(target_name, '/io/github/uunicorn/Fprint/Device', introspect=False)
-        self.target_props = dbus.Dictionary({ 
-                'name':  'DBus driver', 
-                'num-enroll-stages': 5,
-                'scan-type': 'press'
-            })
+        self.target = self.bus.get_object(target_name,
+                                          '/io/github/uunicorn/Fprint/Device',
+                                          introspect=False)
+        self.target_props = dbus.Dictionary({
+            'name': 'DBus driver',
+            'num-enroll-stages': 5,
+            'scan-type': 'press'
+        })
         self.target = dbus.Interface(self.target, 'io.github.uunicorn.Fprint.Device')
         self.target.connect_to_signal('VerifyStatus', self.VerifyStatus)
         self.target.connect_to_signal('VerifyFingerSelected', self.VerifyFingerSelected)
@@ -51,22 +57,22 @@ class Device(dbus.service.Object):
     # ------------------ Template Database --------------------------
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
-                         in_signature="s", 
+                         in_signature="s",
                          out_signature="as",
                          connection_keyword='connection',
                          sender_keyword='sender')
     def ListEnrolledFingers(self, username, sender, connection):
         logging.debug('ListEnrolledFingers')
 
-        if username is None or  username == '':
-            uid=self.bus.get_unix_user(sender)
-            pw=pwd.getpwuid(uid)
-            username=pw.pw_name
+        if username is None or username == '':
+            uid = self.bus.get_unix_user(sender)
+            pw = pwd.getpwuid(uid)
+            username = pw.pw_name
 
         return self.target.ListEnrolledFingers(username, signature='s')
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
-                         in_signature='s', 
+                         in_signature='s',
                          out_signature='',
                          connection_keyword='connection',
                          sender_keyword='sender')
@@ -83,7 +89,7 @@ class Device(dbus.service.Object):
         return self.target.DeleteEnrolledFingers(username, signature='s')
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
-                         in_signature='', 
+                         in_signature='',
                          out_signature='',
                          connection_keyword='connection',
                          sender_keyword='sender')
@@ -98,15 +104,15 @@ class Device(dbus.service.Object):
     # ------------------ Claim/Release --------------------------
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
-                         in_signature='s', 
+                         in_signature='s',
                          out_signature='',
                          connection_keyword='connection',
                          sender_keyword='sender')
     def Claim(self, username, sender, connection):
         logging.debug('Claim')
 
-        uid=self.bus.get_unix_user(sender)
-        pw=pwd.getpwuid(uid)
+        uid = self.bus.get_unix_user(sender)
+        pw = pwd.getpwuid(uid)
         if username is None or len(username) == 0:
             username = pw.pw_name
         elif username != pw.pw_name and uid != 0:
@@ -124,7 +130,7 @@ class Device(dbus.service.Object):
         self.claim_sender = sender
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
-                         in_signature='', 
+                         in_signature='',
                          out_signature='',
                          connection_keyword='connection',
                          sender_keyword='sender')
@@ -133,7 +139,7 @@ class Device(dbus.service.Object):
 
         if self.owner_watcher is None or self.claim_sender != sender:
             raise ClaimDevice()
-        
+
         self.do_release()
 
     def do_release(self):
@@ -152,7 +158,7 @@ class Device(dbus.service.Object):
     # ------------------ Verify --------------------------
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
-                         in_signature='s', 
+                         in_signature='s',
                          out_signature='',
                          connection_keyword='connection',
                          sender_keyword='sender')
@@ -165,9 +171,8 @@ class Device(dbus.service.Object):
         self.busy = True
         return self.target.VerifyStart(self.claimed_by, finger_name, signature='ss')
 
-
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
-                         in_signature='', 
+                         in_signature='',
                          out_signature='',
                          connection_keyword='connection',
                          sender_keyword='sender')
@@ -176,7 +181,7 @@ class Device(dbus.service.Object):
 
         if self.owner_watcher is None or self.claim_sender != sender:
             raise ClaimDevice()
-        
+
         self.busy = False
         self.target.Cancel(signature='')
 
@@ -193,7 +198,7 @@ class Device(dbus.service.Object):
     # ------------------ Enroll --------------------------
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
-                         in_signature='s', 
+                         in_signature='s',
                          out_signature='',
                          connection_keyword='connection',
                          sender_keyword='sender')
@@ -209,9 +214,8 @@ class Device(dbus.service.Object):
         logging.debug('...rc=%s' % repr(rc))
         return rc
 
-
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
-                         in_signature='', 
+                         in_signature='',
                          out_signature='',
                          connection_keyword='connection',
                          sender_keyword='sender')
@@ -224,7 +228,6 @@ class Device(dbus.service.Object):
         self.busy = False
         self.target.Cancel(signature='')
 
-
     @dbus.service.signal(dbus_interface=INTERFACE_NAME, signature='sb')
     def EnrollStatus(self, result, done):
         logging.debug('EnrollStatus')
@@ -234,7 +237,7 @@ class Device(dbus.service.Object):
     # ------------------ Debug --------------------------
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
-                         in_signature='s', 
+                         in_signature='s',
                          out_signature='s',
                          connection_keyword='connection',
                          sender_keyword='sender')
@@ -247,22 +250,22 @@ class Device(dbus.service.Object):
     @dbus.service.method(dbus.PROPERTIES_IFACE, in_signature='ss', out_signature='v')
     def Get(self, interface, prop):
         logging.debug('Get %s.%s' % (interface, prop))
-        
+
         return self.GetAll(interface)[prop]
 
     @dbus.service.method(dbus.PROPERTIES_IFACE, in_signature='ssv')
     def Set(self, interface, prop, value):
         logging.debug('Set %s.%s=%s' % (interface, prop, repr(value)))
-        
+
         if interface != INTERFACE_NAME:
             raise dbus.exceptions.DBusException('net.reactivated.Fprint.Error.UnknownInterface')
-        
+
         raise dbus.exceptions.DBusException('net.reactivated.Fprint.Error.NotImplemented')
 
     @dbus.service.method(dbus.PROPERTIES_IFACE, in_signature='s', out_signature='a{sv}')
     def GetAll(self, interface):
         logging.debug('GetAll %s' % (interface))
-        
+
         if interface != INTERFACE_NAME:
             raise dbus.exceptions.DBusException('net.reactivated.Fprint.Error.UnknownInterface')
 
