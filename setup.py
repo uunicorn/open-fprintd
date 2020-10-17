@@ -3,7 +3,7 @@
 from setuptools import setup
 
 setup(name='open-fprintd',
-      version='0.1',
+      version='0.6',
       py_modules = [],
       packages=['openfprintd'],
       scripts=[],
