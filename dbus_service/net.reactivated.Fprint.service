@@ -2,3 +2,5 @@
 Name=net.reactivated.Fprint
 Exec=/usr/lib/open-fprintd/open-fprintd --debug
 User=root
+SystemdService=open-fprintd.service
+

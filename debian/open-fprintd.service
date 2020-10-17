@@ -1,0 +1,7 @@
+[Unit]
+Description=Open FPrint Daemon
+
+[Service]
+Type=dbus
+BusName=net.reactivated.Fprint
+ExecStart=/usr/lib/open-fprintd/open-fprintd --debug

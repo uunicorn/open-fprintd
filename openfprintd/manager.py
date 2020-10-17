@@ -13,7 +13,16 @@ class Manager(dbus.service.Object):
     def __init__(self, bus_name):
         dbus.service.Object.__init__(self, bus_name, '/net/reactivated/Fprint/Manager')
         self.bus_name = bus_name
-        self.devices=[]
+        self.devices = []
+        self.suspended = False
+        self.callbacks = []
+
+    def proxy_call(self, cb):
+        if self.suspended:
+            logging.debug('The service is suspended, delay the call')
+            self.callbacks += [cb]
+        else:
+            cb()
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
                          in_signature='', 
@@ -34,7 +43,7 @@ class Manager(dbus.service.Object):
 
         if len(self.devices) == 0:
             raise NoSuchDevice()
-        
+
         return self.devices[0]
 
     # TODO: use a different interface name for this
@@ -49,7 +58,7 @@ class Manager(dbus.service.Object):
 
         # TODO: don't ignore dev parameter.
         # For now, one bus name may have only one device with a well known path
-        wrap = Device(self.bus_name, sender)
+        wrap = Device(self, sender)
         self.devices += [wrap]
 
         watcher = None
@@ -61,3 +70,33 @@ class Manager(dbus.service.Object):
                 watcher.cancel()
         watcher = connection.watch_name_owner(sender, watch_cb)
         
+    @dbus.service.method(dbus_interface=INTERFACE_NAME,
+                         in_signature='', 
+                         out_signature='',
+                         connection_keyword='connection',
+                         sender_keyword='sender')
+    def Suspend(self, sender, connection):
+        logging.debug('Suspend')
+
+        self.suspended = True
+
+        for dev in self.devices:
+            dev.target.Suspend()
+
+    @dbus.service.method(dbus_interface=INTERFACE_NAME,
+                         in_signature='', 
+                         out_signature='',
+                         connection_keyword='connection',
+                         sender_keyword='sender')
+    def Resume(self, sender, connection):
+        logging.debug('Resume')
+
+        for dev in self.devices:
+            dev.target.Resume()
+
+        for cb in self.callbacks:
+            cb()
+
+        self.callbacks = []
+        self.suspended = False
+

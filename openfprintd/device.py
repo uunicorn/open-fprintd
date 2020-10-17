@@ -28,7 +28,9 @@ class PermissionDenied(dbus.DBusException):
 class Device(dbus.service.Object):
     cnt=0
 
-    def __init__(self, bus_name, target_name):
+    def __init__(self, mgr, target_name):
+        self.manager = mgr
+        bus_name = mgr.bus_name
         dbus.service.Object.__init__(self, bus_name, '/net/reactivated/Fprint/Device/%d' % Device.cnt)
         Device.cnt += 1
         self.bus = bus_name.get_bus()
@@ -54,16 +56,20 @@ class Device(dbus.service.Object):
                          in_signature="s", 
                          out_signature="as",
                          connection_keyword='connection',
-                         sender_keyword='sender')
-    def ListEnrolledFingers(self, username, sender, connection):
+                         sender_keyword='sender',
+                         async_callbacks=('callback', 'errback'))
+    def ListEnrolledFingers(self, username, sender, connection, callback, errback):
         logging.debug('ListEnrolledFingers')
 
-        if username is None or  username == '':
+        if username is None or username == '':
             uid=self.bus.get_unix_user(sender)
             pw=pwd.getpwuid(uid)
             username=pw.pw_name
 
-        return self.target.ListEnrolledFingers(username, signature='s')
+        def cb():
+            callback(self.target.ListEnrolledFingers(username, signature='s'))
+
+        self.manager.proxy_call(cb)
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
                          in_signature='s', 
