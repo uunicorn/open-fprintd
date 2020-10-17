@@ -1,3 +1,9 @@
+open-fprintd (0.6~ppa1) bionic; urgency=medium
+
+  * Add laptop Suspend/Resume methods to properly handle sensor lifecycle. 
+
+ -- uunicorn <viktor.dragomiretskyy@gmail.com>  Sat, 17 Oct 2020 17:38:39 +1300
+
 open-fprintd (0.5~ppa1) bionic; urgency=medium
 
   * A bunch of Claim-related bug fixes
