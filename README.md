@@ -20,7 +20,7 @@ This is very much work in progress, but the intended architecture should look so
 
 ## Warning
 
-This is work in progress. Install and use at your own risc.  At this point this project does not enforce any auth 
+This is work in progress. Install and use at your own risk.  At this point this project does not enforce any auth 
 checks against requests made on DBus.
 
 ## Setting up
