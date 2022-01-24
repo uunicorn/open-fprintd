@@ -36,7 +36,7 @@ Existing architecture of `fprintd` and `libfprint` does not allow loosely couple
 This is done on purpose to force hardware vendors to contribute their drivers as an open source. Unfortunately this 
 approach prevents open source projects (like `python-validity`) to be integrated with the rest of the stack without 
 creating a shim which could be exploited by the vendors to create a binary driver distributions. `open-fprintd` will 
-allow anyone to contribute a backend implementation. I rust the end user should be responsible for making a choice between an 
+allow anyone to contribute a backend implementation. I trust the end user should be responsible for making a choice between an 
 open source driver and a binary blob provided by a hardware vendor. They have already chosen Linux over Windows anyway.
 
 For more deatils about upstream politics, see [this issue](https://gitlab.freedesktop.org/libfprint/libfprint/-/issues/276).
