@@ -4,7 +4,7 @@ import dbus
 import dbus.mainloop.glib
 import dbus.service
 dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-from gi.repository import GObject
+from gi.repository import GObject, GLib
 import logging
 import argparse
 
@@ -22,5 +22,5 @@ if __name__ == '__main__':
     bus_name = dbus.service.BusName('net.reactivated.Fprint', dbus.SystemBus())
     server = Manager(bus_name)
 
-    GObject.MainLoop().run()
+    GLib.MainLoop().run()
 

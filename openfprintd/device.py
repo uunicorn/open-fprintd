@@ -3,8 +3,9 @@ import dbus
 import dbus.service
 import logging
 import pwd
+import os
+import time
 from gi.repository import GLib
-
 
 INTERFACE_NAME = 'net.reactivated.Fprint.Device'
 
@@ -44,6 +45,10 @@ class Device(dbus.service.Object):
         self.claimed_by = None
         self.claim_sender = None
         self.busy = False
+        self._session_monitor_id = None
+        self._cleanup_timeout_id = None
+        self._last_verify_time = 0
+        self._cooldown_until = 0  # Initialize cooldown timer
 
         self.suspended = False
         self.callbacks = []
@@ -224,12 +229,20 @@ class Device(dbus.service.Object):
                          connection_keyword='connection',
                          sender_keyword='sender')
     def VerifyStart(self, finger_name, sender, connection):
+        import time
+        current_time = time.time()
+        
+        # Check if we're in cooldown period
+        if current_time < self._cooldown_until:
+            logging.debug('Skipping VerifyStart - in cooldown period')
+            return
+            
         logging.debug('VerifyStart')
+        self.busy = True
 
         if self.owner_watcher is None or self.claim_sender != sender:
             raise ClaimDevice()
 
-        self.busy = True
         return self.target.VerifyStart(self.claimed_by, finger_name, signature='ss')
 
 
@@ -240,12 +253,28 @@ class Device(dbus.service.Object):
                          sender_keyword='sender')
     def VerifyStop(self, sender, connection):
         logging.debug('VerifyStop')
-
-        if self.owner_watcher is None or self.claim_sender != sender:
-            raise ClaimDevice()
         
-        self.busy = False
-        self.target.Cancel(signature='')
+        # Skip if not busy or already released
+        if not self.busy:
+            logging.debug('Skipping VerifyStop - not busy')
+            return
+            
+        # Check if we have a valid claim
+        if self.owner_watcher is None or self.claim_sender != sender:
+            logging.debug('Skipping VerifyStop - no owner watcher or invalid sender')
+            self.busy = False
+            return
+        
+        try:
+            # Mark as not busy first to prevent re-entry
+            self.busy = False
+            # Then cancel any ongoing operation
+            self.target.Cancel(signature='')
+            logging.debug('VerifyStop completed successfully')
+        except Exception as e:
+            logging.debug('Error during VerifyStop: %s', e)
+            # Ensure we don't leave the device in a busy state
+            self.busy = False
 
     @dbus.service.signal(dbus_interface=INTERFACE_NAME, signature='s')
     def VerifyFingerSelected(self, finger):
@@ -253,9 +282,142 @@ class Device(dbus.service.Object):
 
     @dbus.service.signal(dbus_interface=INTERFACE_NAME, signature='sb')
     def VerifyStatus(self, result, done):
-        logging.debug('VerifyStatus')
-        if done:
+        import time
+        
+        current_time = time.time()
+        self._last_verify_time = current_time
+        logging.debug('VerifyStatus (result: %s, done: %s, time: %.3f)' % (result, done, current_time))
+        
+        # If we got a successful match
+        if done and (result is True or (isinstance(result, str) and 'match' in result)):
+            logging.debug('Successful authentication detected')
+            
+            # Only apply special handling for kscreenlocker context
+            if self._is_kscreenlocker_context():
+                logging.debug('In kscreenlocker context, scheduling cleanup...')
+                self._cleanup_verify()
+                # Schedule a forced cleanup as a fallback
+                self._schedule_cleanup(delay_seconds=2)
+            else:
+                # For non-kscreenlocker (like su/sudo), just do normal cleanup
+                logging.debug('Not in kscreenlocker context, normal cleanup')
+                self._cleanup_verify()
+            
+            # Add a cooldown period to prevent immediate re-verification
+            self._cooldown_until = current_time + 5  # 5-second cooldown
+            logging.debug(f'Added cooldown until {self._cooldown_until}')
+            
+        elif done:
+            # If done but not a match, just mark as not busy
             self.busy = False
+            
+    def _is_kscreenlocker_context(self):
+        """Check if we're in a kscreenlocker context by examining environment and caller.
+        Returns True if we're likely running under kscreenlocker, False otherwise."""
+        try:
+            # Check if we have a display (not running in a console)
+            display = os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY')
+            if not display:
+                return False
+                
+            # Check parent process to see if it's kscreenlocker
+            try:
+                import psutil
+                parent = psutil.Process(os.getppid())
+                if 'kscreenlocker' in parent.name().lower():
+                    return True
+            except Exception as e:
+                logging.debug(f'Could not check parent process: {e}')
+                
+            # Check environment variables that might indicate kscreenlocker
+            xdg_session_type = os.environ.get('XDG_SESSION_TYPE', '').lower()
+            xdg_current_desktop = os.environ.get('XDG_CURRENT_DESKTOP', '').lower()
+            
+            if 'kscreenlocker' in xdg_current_desktop or 'lock' in xdg_session_type:
+                return True
+                
+            return False
+            
+        except Exception as e:
+            logging.debug(f'Error checking kscreenlocker context: {e}')
+            return False
+    
+    def _cleanup_verify(self, force=False):
+        """Clean up verification state and release resources.
+        
+        Args:
+            force: If True, force cleanup even if not marked as busy
+        """
+        if not force and not self.busy:
+            logging.debug('Skipping cleanup - not busy')
+            return
+
+        if self.owner_watcher is None:
+            logging.debug('Skipping cleanup - no owner watcher')
+            self.busy = False
+            return
+
+        # Cancel any pending cleanup timeouts
+        if self._cleanup_timeout_id is not None:
+            GLib.source_remove(self._cleanup_timeout_id)
+            self._cleanup_timeout_id = None
+
+        logging.debug('Starting cleanup...')
+        sender = self.claim_sender
+        cleanup_complete = False
+
+        try:
+            # Only try to stop verification if we're still busy
+            if (force or self.busy) and sender is not None:
+                try:
+                    logging.debug('Calling VerifyStop...')
+                    self.VerifyStop(sender, None)
+                    cleanup_complete = True
+                except Exception as e:
+                    logging.debug('Error in VerifyStop during cleanup: %s', e)
+
+            # Only try to release if we haven't already completed cleanup
+            if not cleanup_complete and self.owner_watcher is not None and sender is not None:
+                try:
+                    logging.debug('Calling Release...')
+                    self.Release(sender, None)
+                    cleanup_complete = True
+                except Exception as e:
+                    logging.debug('Error in Release during cleanup: %s', e)
+        except Exception as e:
+            logging.debug('Unexpected error during cleanup: %s', e)
+        finally:
+            if cleanup_complete or not self.busy:
+                logging.debug('Cleanup completed successfully')
+            else:
+                logging.debug('Cleanup may not have completed successfully')
+            self.busy = False
+            
+    def _schedule_cleanup(self, delay_seconds=5):
+        """Schedule a forced cleanup after a delay.
+        
+        Only schedules if we're in a kscreenlocker context to avoid interfering
+        with other authentication flows.
+        """
+        if not self._is_kscreenlocker_context():
+            logging.debug('Skipping scheduled cleanup - not in kscreenlocker context')
+            return
+            
+        if self._cleanup_timeout_id is not None:
+            GLib.source_remove(self._cleanup_timeout_id)
+        
+        def cleanup_callback():
+            self._cleanup_timeout_id = None
+            if self._is_kscreenlocker_context():  # Double-check context
+                logging.debug('Cleanup timeout triggered, forcing cleanup')
+                self._cleanup_verify(force=True)
+            else:
+                logging.debug('Skipping cleanup - no longer in kscreenlocker context')
+            return False  # Don't repeat
+            
+        self._cleanup_timeout_id = GLib.timeout_add_seconds(
+            delay_seconds, cleanup_callback)
+        logging.debug(f'Scheduled kscreenlocker cleanup in {delay_seconds} seconds')
 
     # ------------------ Enroll --------------------------
 
