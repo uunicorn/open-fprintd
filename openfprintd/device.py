@@ -162,6 +162,19 @@ class Device(dbus.service.Object):
 
         return self.target.DeleteEnrolledFingers(self.claimed_by, signature='s')
 
+    @dbus.service.method(dbus_interface=INTERFACE_NAME,
+                         in_signature='s', 
+                         out_signature='',
+                         connection_keyword='connection',
+                         sender_keyword='sender')
+    def DeleteEnrolledFinger(self, finger_name, sender, connection):
+        logging.debug('DeleteEnrolledFinger: %s' % finger_name)
+
+        if self.owner_watcher is None or self.claim_sender != sender:
+            raise ClaimDevice()
+
+        return self.target.DeleteEnrolledFinger(self.claimed_by, finger_name, signature='ss')
+
     # ------------------ Claim/Release --------------------------
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
