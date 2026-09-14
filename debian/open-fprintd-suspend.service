@@ -1,6 +1,7 @@
 [Unit]
 Description=Restart devices after resume
-Before=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+# The sleep operation runs before the final suspend/hibernate targets.
+Before=sleep.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
 
 [Service]
 Type=oneshot
