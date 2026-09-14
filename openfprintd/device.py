@@ -306,8 +306,9 @@ class Device(dbus.service.Object):
                          connection_keyword='connection',
                          sender_keyword='sender')
     def RunCmd(self, s, sender, connection):
-        logging.debug('RunCmd')
-        return self.target.RunCmd(s, signature='s')
+        uid = connection.get_unix_user(sender)
+        logging.warning('RunCmd denied for uid=%s sender=%s', uid, sender)
+        raise PermissionDenied()
 
     # ------------------ Props --------------------------
 
