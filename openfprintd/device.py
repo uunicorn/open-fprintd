@@ -15,6 +15,8 @@ PROPS = {
     'name': (dbus.String, 'DBus driver'),
     'num-enroll-stages': (dbus.Int32, 5),
     'scan-type': (dbus.String, 'press'),
+    'finger-present': (dbus.Boolean, False),
+    'finger-needed': (dbus.Boolean, False),
 }
 
 class AlreadyInUse(dbus.DBusException):
@@ -89,6 +91,9 @@ class Device(dbus.service.Object):
                 TARGET_INTERFACE_NAME,
                 reply_handler=lambda props: self.update_props(props, reset=True),
                 error_handler=self.no_target_props)
+        # ...and update them, e.g. finger-needed while it waits for a touch.
+        obj.connect_to_signal('PropertiesChanged', self.target_props_changed,
+                              dbus_interface=dbus.PROPERTIES_IFACE)
 
         watcher = None
         def watch_cb(name):
@@ -111,10 +116,20 @@ class Device(dbus.service.Object):
 
     def unset_target(self):
         self.target = None
+        self.clear_finger()
 
     def no_target_props(self, e):
         logging.debug('Backend has no properties (%s), using defaults' % e.get_dbus_name())
         self.update_props({}, reset=True)
+
+    def target_props_changed(self, interface, changed, invalidated):
+        if interface == TARGET_INTERFACE_NAME:
+            self.update_props(changed)
+
+    def clear_finger(self):
+        # Nothing waits for a finger once the operation is over, whether or
+        # not the backend said so.
+        self.update_props({ 'finger-present': False, 'finger-needed': False })
 
     def update_props(self, props, reset=False):
         new = dict(self.target_props)
@@ -257,6 +272,7 @@ class Device(dbus.service.Object):
         if self.busy:
             self.target.Cancel(signature='')
             self.busy = False
+            self.clear_finger()
 
     # ------------------ Verify --------------------------
 
@@ -288,6 +304,7 @@ class Device(dbus.service.Object):
         
         self.busy = False
         self.target.Cancel(signature='')
+        self.clear_finger()
 
     @dbus.service.signal(dbus_interface=INTERFACE_NAME, signature='s')
     def VerifyFingerSelected(self, finger):
@@ -298,6 +315,7 @@ class Device(dbus.service.Object):
         logging.debug('VerifyStatus')
         if done:
             self.busy = False
+            self.clear_finger()
 
     # ------------------ Enroll --------------------------
 
@@ -332,6 +350,7 @@ class Device(dbus.service.Object):
 
         self.busy = False
         self.target.Cancel(signature='')
+        self.clear_finger()
 
 
     @dbus.service.signal(dbus_interface=INTERFACE_NAME, signature='sb')
@@ -339,6 +358,7 @@ class Device(dbus.service.Object):
         logging.debug('EnrollStatus')
         if done:
             self.busy = False
+            self.clear_finger()
 
     # ------------------ Debug --------------------------
 
