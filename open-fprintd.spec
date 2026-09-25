@@ -1,11 +1,13 @@
 Name:           open-fprintd
 Version:        0.7
-Release:        1%{?dist}
+Release:        1.fork1%{?dist}
 Summary:        fprintd replacement for standalone backend services
 
 License:        GPL-2.0-only
 URL:            https://github.com/uunicorn/%{name}
-Source0:        %{url}/archive/%{version}/%{name}-%{version}.tar.gz
+# Fork build (upstream plus the patches in its open PRs), made with:
+#   git archive --prefix=open-fprintd-0.7/ -o ~/rpmbuild/SOURCES/open-fprintd-0.7.tar.gz integration
+Source0:        %{name}-%{version}.tar.gz
 BuildArch:      noarch
 
 BuildRequires:  python3-devel
@@ -75,6 +77,11 @@ install -Dpm 0644 debian/open-fprintd-resume.service %{buildroot}%{_unitdir}/ope
 %{_unitdir}/open-fprintd-resume.service
 
 %changelog
+* Fri Sep 25 2026 Ash Hughes <spirit.returned@gmail.com> - 0.7-1.fork1
+- Fork build: DeleteEnrolledFinger (#26), root-only RegisterDevice,
+  Suspend and Resume and no RunCmd (#28), device properties from the
+  backend, finger-present and finger-needed
+
 * Fri Sep 25 2026 Ash Hughes <spirit.returned@gmail.com> - 0.7-1
 - Update to 0.7
 - Build with the pyproject macros
