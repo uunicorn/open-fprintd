@@ -1,0 +1,30 @@
+[Unit]
+Description=Open FPrint Daemon
+Documentation=https://github.com/uunicorn/open-fprintd
+
+[Service]
+Type=dbus
+BusName=net.reactivated.Fprint
+ExecStart=/usr/lib/open-fprintd/open-fprintd
+
+# open-fprintd only talks D-Bus; the backends do the device access.
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+PrivateNetwork=true
+RestrictAddressFamilies=AF_UNIX
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictRealtime=true
+NoNewPrivileges=true
+SystemCallFilter=@system-service
+
+[Install]
+# fprintd's D-Bus activation file starts fprintd.service. Enabling this unit
+# makes fprintd.service an alias for it, so open-fprintd answers on
+# net.reactivated.Fprint instead of fprintd; disabling it hands the name back.
+Alias=fprintd.service
