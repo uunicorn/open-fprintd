@@ -8,6 +8,18 @@ INTERFACE_NAME = 'net.reactivated.Fprint.Manager'
 class NoSuchDevice(dbus.DBusException):
     _dbus_error_name = 'net.reactivated.Fprint.Error.NoSuchDevice'
 
+class PermissionDenied(dbus.DBusException):
+    _dbus_error_name = 'net.reactivated.Fprint.Error.PermissionDenied'
+
+    def __init__(self):
+        super().__init__('Permission denied')
+
+def require_root(connection, sender, action):
+    uid = connection.get_unix_user(sender)
+    if uid != 0:
+        logging.warning('%s denied for uid=%s sender=%s', action, uid, sender)
+        raise PermissionDenied()
+
 class Manager(dbus.service.Object):
     def __init__(self, bus_name):
         dbus.service.Object.__init__(self, bus_name, '/net/reactivated/Fprint/Manager')
@@ -47,8 +59,8 @@ class Manager(dbus.service.Object):
                          connection_keyword='connection',
                          sender_keyword='sender')
     def RegisterDevice(self, dev, sender, connection):
-        # TODO: polkit: make sure we're talking to a root process!
         logging.debug('RegisterDevice %s %s' % (sender, repr(dev)))
+        require_root(connection, sender, 'RegisterDevice')
 
         if dev not in self.devices:
             self.devices[dev] = Device(self)
@@ -63,6 +75,7 @@ class Manager(dbus.service.Object):
                          sender_keyword='sender')
     def Suspend(self, sender, connection):
         logging.debug('Suspend')
+        require_root(connection, sender, 'Suspend')
 
         for dev in self.devices.values():
             dev.Suspend()
@@ -76,6 +89,7 @@ class Manager(dbus.service.Object):
                          sender_keyword='sender')
     def Resume(self, sender, connection):
         logging.debug('Resume')
+        require_root(connection, sender, 'Resume')
 
         for dev in self.devices.values():
             dev.Resume()
