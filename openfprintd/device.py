@@ -7,6 +7,17 @@ from gi.repository import GLib
 
 
 INTERFACE_NAME = 'net.reactivated.Fprint.Device'
+TARGET_INTERFACE_NAME = 'io.github.uunicorn.Fprint.Device'
+
+# fprintd's device properties: D-Bus type, and the value used when the backend
+# doesn't supply one.
+PROPS = {
+    'name': (dbus.String, 'DBus driver'),
+    'num-enroll-stages': (dbus.Int32, 5),
+    'scan-type': (dbus.String, 'press'),
+    'finger-present': (dbus.Boolean, False),
+    'finger-needed': (dbus.Boolean, False),
+}
 
 class AlreadyInUse(dbus.DBusException):
     _dbus_error_name = 'net.reactivated.Fprint.Error.AlreadyInUse'
@@ -35,11 +46,9 @@ class Device(dbus.service.Object):
         dbus.service.Object.__init__(self, bus_name, '/net/reactivated/Fprint/Device/%d' % Device.cnt)
         Device.cnt += 1
         self.bus = bus_name.get_bus()
-        self.target_props = dbus.Dictionary({ 
-                'name':  'DBus driver', 
-                'num-enroll-stages': 5,
-                'scan-type': 'press'
-            })
+        self.target = None
+        self.target_props = dbus.Dictionary(
+                { k: t(v) for k, (t, v) in PROPS.items() }, signature='sv')
         self.owner_watcher = None
         self.claimed_by = None
         self.claim_sender = None
@@ -69,11 +78,22 @@ class Device(dbus.service.Object):
         self.callbacks = []
 
     def set_target(self, target_name, sender):
-        self.target = self.bus.get_object(sender, target_name, introspect=False)
-        self.target = dbus.Interface(self.target, 'io.github.uunicorn.Fprint.Device')
+        obj = self.bus.get_object(sender, target_name, introspect=False)
+        self.target = dbus.Interface(obj, TARGET_INTERFACE_NAME)
         self.target.connect_to_signal('VerifyStatus', self.VerifyStatus)
         self.target.connect_to_signal('VerifyFingerSelected', self.VerifyFingerSelected)
         self.target.connect_to_signal('EnrollStatus', self.EnrollStatus)
+
+        # A backend can describe the device (e.g. its number of enroll stages)
+        # through org.freedesktop.DBus.Properties on its own interface. Ask
+        # asynchronously: the backend may be blocked in RegisterDevice.
+        dbus.Interface(obj, dbus.PROPERTIES_IFACE).GetAll(
+                TARGET_INTERFACE_NAME,
+                reply_handler=lambda props: self.update_props(props, reset=True),
+                error_handler=self.no_target_props)
+        # ...and update them, e.g. finger-needed while it waits for a touch.
+        obj.connect_to_signal('PropertiesChanged', self.target_props_changed,
+                              dbus_interface=dbus.PROPERTIES_IFACE)
 
         watcher = None
         def watch_cb(name):
@@ -96,6 +116,43 @@ class Device(dbus.service.Object):
 
     def unset_target(self):
         self.target = None
+        self.clear_finger()
+
+    def no_target_props(self, e):
+        logging.debug('Backend has no properties (%s), using defaults' % e.get_dbus_name())
+        self.update_props({}, reset=True)
+
+    def target_props_changed(self, interface, changed, invalidated):
+        if interface == TARGET_INTERFACE_NAME:
+            self.update_props(changed)
+
+    def clear_finger(self):
+        # Nothing waits for a finger once the operation is over, whether or
+        # not the backend said so.
+        self.update_props({ 'finger-present': False, 'finger-needed': False })
+
+    def update_props(self, props, reset=False):
+        new = dict(self.target_props)
+        if reset:
+            new.update({ k: t(v) for k, (t, v) in PROPS.items() })
+
+        for k, v in props.items():
+            if k not in PROPS:
+                logging.debug('Ignoring unknown backend property %s' % k)
+                continue
+            try:
+                new[k] = PROPS[k][0](v)
+            except (TypeError, ValueError):
+                logging.warning('Ignoring bad value for backend property %s: %r' % (k, v))
+
+        changed = { k: v for k, v in new.items() if self.target_props.get(k) != v }
+        self.target_props = dbus.Dictionary(new, signature='sv')
+
+        if changed:
+            logging.debug('Properties changed: %r' % changed)
+            self.PropertiesChanged(INTERFACE_NAME,
+                                   dbus.Dictionary(changed, signature='sv'),
+                                   dbus.Array([], signature='s'))
 
     def Resume(self):
         self.suspended = False
@@ -162,6 +219,19 @@ class Device(dbus.service.Object):
 
         return self.target.DeleteEnrolledFingers(self.claimed_by, signature='s')
 
+    @dbus.service.method(dbus_interface=INTERFACE_NAME,
+                         in_signature='s', 
+                         out_signature='',
+                         connection_keyword='connection',
+                         sender_keyword='sender')
+    def DeleteEnrolledFinger(self, finger_name, sender, connection):
+        logging.debug('DeleteEnrolledFinger: %s' % finger_name)
+
+        if self.owner_watcher is None or self.claim_sender != sender:
+            raise ClaimDevice()
+
+        return self.target.DeleteEnrolledFinger(self.claimed_by, finger_name, signature='ss')
+
     # ------------------ Claim/Release --------------------------
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
@@ -215,6 +285,7 @@ class Device(dbus.service.Object):
         if self.busy:
             self.target.Cancel(signature='')
             self.busy = False
+            self.clear_finger()
 
     # ------------------ Verify --------------------------
 
@@ -246,6 +317,7 @@ class Device(dbus.service.Object):
         
         self.busy = False
         self.target.Cancel(signature='')
+        self.clear_finger()
 
     @dbus.service.signal(dbus_interface=INTERFACE_NAME, signature='s')
     def VerifyFingerSelected(self, finger):
@@ -256,6 +328,7 @@ class Device(dbus.service.Object):
         logging.debug('VerifyStatus')
         if done:
             self.busy = False
+            self.clear_finger()
 
     # ------------------ Enroll --------------------------
 
@@ -290,6 +363,7 @@ class Device(dbus.service.Object):
 
         self.busy = False
         self.target.Cancel(signature='')
+        self.clear_finger()
 
 
     @dbus.service.signal(dbus_interface=INTERFACE_NAME, signature='sb')
@@ -297,6 +371,7 @@ class Device(dbus.service.Object):
         logging.debug('EnrollStatus')
         if done:
             self.busy = False
+            self.clear_finger()
 
     # ------------------ Debug --------------------------
 
@@ -306,8 +381,9 @@ class Device(dbus.service.Object):
                          connection_keyword='connection',
                          sender_keyword='sender')
     def RunCmd(self, s, sender, connection):
-        logging.debug('RunCmd')
-        return self.target.RunCmd(s, signature='s')
+        uid = connection.get_unix_user(sender)
+        logging.warning('RunCmd denied for uid=%s sender=%s', uid, sender)
+        raise PermissionDenied()
 
     # ------------------ Props --------------------------
 
@@ -334,3 +410,7 @@ class Device(dbus.service.Object):
             raise dbus.exceptions.DBusException('net.reactivated.Fprint.Error.UnknownInterface')
 
         return self.target_props
+
+    @dbus.service.signal(dbus.PROPERTIES_IFACE, signature='sa{sv}as')
+    def PropertiesChanged(self, interface, changed, invalidated):
+        pass
