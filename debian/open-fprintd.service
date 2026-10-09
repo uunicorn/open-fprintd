@@ -4,4 +4,4 @@ Description=Open FPrint Daemon
 [Service]
 Type=dbus
 BusName=net.reactivated.Fprint
-ExecStart=/usr/lib/open-fprintd/open-fprintd --debug
+ExecStart=/usr/lib/open-fprintd/open-fprintd

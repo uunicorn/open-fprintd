@@ -13,6 +13,7 @@ class Manager(dbus.service.Object):
         dbus.service.Object.__init__(self, bus_name, '/net/reactivated/Fprint/Manager')
         self.bus_name = bus_name
         self.devices = {}
+        self._setup_sleep_monitor()
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
                          in_signature='', 
@@ -55,6 +56,26 @@ class Manager(dbus.service.Object):
 
         wrap = self.devices[dev]
         wrap.set_target(dev, sender)
+
+    def _setup_sleep_monitor(self):
+        bus = self.bus_name.get_bus()
+        self._login1 = bus.get_object('org.freedesktop.login1', '/org/freedesktop/login1')
+        self._login1.connect_to_signal('PrepareForSleep', self._on_prepare_for_sleep,
+                                       dbus_interface='org.freedesktop.login1.Manager')
+        logging.debug('Registered PrepareForSleep listener on logind')
+
+    def _on_prepare_for_sleep(self, sleeping):
+        # Handling sleep here keeps the D-Bus service alive across suspend, so
+        # clients such as lock screens no longer lose the fingerprint device
+        # when it re-appears (copied from PR #24 by @fcatuhe).
+        if sleeping:
+            logging.debug('PrepareForSleep: going to sleep')
+            for dev in self.devices.values():
+                dev.Suspend()
+        else:
+            logging.debug('PrepareForSleep: waking up')
+            for dev in self.devices.values():
+                dev.Resume()
         
     @dbus.service.method(dbus_interface=INTERFACE_NAME,
                          in_signature='', 

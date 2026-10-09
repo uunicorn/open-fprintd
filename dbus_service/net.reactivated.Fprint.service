@@ -1,6 +1,6 @@
 [D-BUS Service]
 Name=net.reactivated.Fprint
-Exec=/usr/lib/open-fprintd/open-fprintd --debug
+Exec=/usr/lib/open-fprintd/open-fprintd
 User=root
 SystemdService=open-fprintd.service
 
