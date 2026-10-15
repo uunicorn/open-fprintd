@@ -5,3 +5,8 @@ Description=Open FPrint Daemon
 Type=dbus
 BusName=net.reactivated.Fprint
 ExecStart=/usr/lib/open-fprintd/open-fprintd --debug
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
